@@ -106,11 +106,11 @@ public class DNSLookupService {
                 }
             } else if (commandArgs[0].equalsIgnoreCase("lookup") ||
                     commandArgs[0].equalsIgnoreCase("l")) {
-                // LOOKUP: Find and print all results associated to a name.
+                // LOOKUP: Find and print all results associated to a name. //TODO: START HERE.
                 RecordType type;
                 if (commandArgs.length == 2)
                     type = RecordType.A;
-                else if (commandArgs.length == 3)
+                else if (commandArgs.length == 3) //TODO: if there's a third arg it is specifying the RR to query
                     try {
                         type = RecordType.valueOf(commandArgs[2].toUpperCase());
                     } catch (IllegalArgumentException ex) {
@@ -121,7 +121,7 @@ public class DNSLookupService {
                     System.err.println("Invalid call. Format:\n\tlookup hostName [type]");
                     continue;
                 }
-                findAndPrintResults(commandArgs[1], type);
+                findAndPrintResults(commandArgs[1], type); //TODO: trace exec, arg 1 is the IP for lookup.
             } else if (commandArgs[0].equalsIgnoreCase("dump")) {
                 // DUMP: Print all results still cached
                 cache.forEachNode(DNSLookupService::printResults);
@@ -148,7 +148,7 @@ public class DNSLookupService {
      */
     private static void findAndPrintResults(String hostName, RecordType type) {
         DNSNode node = new DNSNode(hostName, type);
-        printResults(node, getResults(node, 0));
+        printResults(node, getResults(node, 0)); //TODO: still tracing exec, args for this are exactly as expected
     }
 
     /**
@@ -165,8 +165,8 @@ public class DNSLookupService {
     private static Set<ResourceRecord> getResults(DNSNode node, int indirectionLevel) {
 
         if (p1Flag) { // For isolating part 1 testing only
-            retrieveResultsFromServer(node, rootServer);
-            return Collections.emptySet();
+            retrieveResultsFromServer(node, rootServer); //TODO: keep going in here
+            return Collections.emptySet(); //prob wanna make sure we're returning the right thing!
         } else if (indirectionLevel > MAX_INDIRECTION_LEVEL) {
             System.err.println("Maximum number of indirection levels reached.");
             return Collections.emptySet();
@@ -189,8 +189,18 @@ public class DNSLookupService {
         byte[] message = new byte[512]; // query is no longer than 512 bytes
 
         try {
+            /*TODO: implement this, what you have:
+            - the DNS server IP you're sending the query to
+            - the DNS node (host name and RR type)
+            - a buffer of 512 bytes into which you're placing the query message
+            */
             DNSServerResponse serverResponse = DNSQueryHandler.buildAndSendQuery(message, server, node);
 
+            /*TODO: implement this, what you have:
+            - the ID of the communication
+            - the returned message in a byte buffer of 1024
+            - and the cache into which you save the response
+            */
             Set<ResourceRecord> nameservers = DNSQueryHandler.decodeAndCacheResponse(serverResponse.getTransactionID(),
                     serverResponse.getResponse(),
                     cache);

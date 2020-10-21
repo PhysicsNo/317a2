@@ -3,8 +3,12 @@ package ca.ubc.cs317.dnslookup;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+
+
 
 public class DNSQueryHandler {
 
@@ -13,6 +17,20 @@ public class DNSQueryHandler {
     private static boolean verboseTracing = false;
 
     private static final Random random = new Random();
+
+    private static int questionLength = 0;
+
+    //For testing
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+    public static String bytesToHex(byte[] bytes) {
+        byte[] hexChars = new byte[bytes.length * 2];
+        for (int j = 0; j < bytes.length; j++) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = (byte) HEX_ARRAY[v >>> 4];
+            hexChars[j * 2 + 1] = (byte) HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars, StandardCharsets.UTF_8);
+    }
 
     /**
      * Sets up the socket and set the timeout to 5 seconds
@@ -51,7 +69,80 @@ public class DNSQueryHandler {
     public static DNSServerResponse buildAndSendQuery(byte[] message, InetAddress server,
                                                       DNSNode node) throws IOException {
         // TODO (PART 1): Implement this
-        return null;
+        //Building query header
+        int offset = 0;
+        byte[] ID = new byte[2];
+        random.nextBytes(ID);
+        //TODO: Right way of doing this???
+        int transactionID = (ID[0] << 8)+ ID[1];
+
+        while (offset < 2) {
+            message[offset] = ID[offset];
+            offset++;
+        }
+        while (offset < 12) {
+            message[offset] = (byte) ((offset == 5) ? 1 : 0);
+            offset++;
+        }
+
+        //Building Question
+        String[] labels = node.getHostName().split("\\.");
+        for (String label : labels) {
+            int length = label.length();
+            message[offset++] = (byte) length;
+            questionLength++;
+            for (char c : label.toCharArray()) {
+                message[offset++] = (byte )c;
+                questionLength++;
+            }
+        }
+        message[offset++] = (byte)0;
+        message[offset++] = (byte)0;
+        message[offset++] = (byte) node.getType().getCode();
+        message[offset++] = (byte)0;
+        message[offset] = (byte)1;
+        questionLength += 5;
+        if (verboseTracing) {
+            System.out.println();
+            System.out.println();
+            String qID = "Query ID    " + transactionID + " " + node.getHostName() + "  " + node.getType() + " --> " +
+                    server;
+            System.out.println(qID);
+        }
+        /*
+        String msg = bytesToHex(message);
+        System.out.println(msg);
+        */
+        //TODO: make sure you've correctly counted the length!
+        //Sending the Query and decoding the response.
+        ByteBuffer responseContents;
+        DNSServerResponse response;
+        byte[] reply = new byte[1024];
+        DatagramPacket mp = new DatagramPacket(message, message.length, server, DEFAULT_DNS_PORT);
+        DatagramPacket rp = new DatagramPacket(reply, message.length, server, DEFAULT_DNS_PORT);
+        try {
+            socket.send(mp);
+            socket.receive(rp);
+        } catch (SocketTimeoutException e1) {
+            closeSocket();
+            if (verboseTracing) {
+                System.out.println();
+                System.out.println();
+                String qID = "Query ID    " + transactionID + " " + node.getHostName() + "  " + node.getType() + " --> " +
+                        server;
+                System.out.println(qID);
+            }
+            openSocket();
+            try {
+                socket.send(mp);
+                socket.receive(rp);
+            } catch (SocketTimeoutException e2) {
+                return null;
+            }
+        }
+        responseContents = ByteBuffer.wrap(rp.getData());
+        return (new DNSServerResponse(responseContents, transactionID));
+        //IT WORKS! TODO: ERROR HANDLING, MORE TESTING.
     }
 
     /**
@@ -65,6 +156,36 @@ public class DNSQueryHandler {
     public static Set<ResourceRecord> decodeAndCacheResponse(int transactionID, ByteBuffer responseBuffer,
                                                              DNSCache cache) {
         // TODO (PART 1): Implement this
+        byte[] response = responseBuffer.array();
+        Set<ResourceRecord> nameServerRRs = new HashSet<ResourceRecord>();
+        //Parsing reply for simply the NSs of the response put into return.
+        //1. Get AA bit
+        int AA = (response[2] >> 2) & 0x01;
+
+        //2. Get Error bits
+        int RCODE = response[3] & 0x0F;
+
+        //3. Get RR counts
+        int ansCount = (response[6] << 8) + response[7]; //TODO: check this is how you put the bytes together.
+        int nsCount = (response[8] << 8) + response[9];
+        int otherCount = (response[10] << 8) + response[11];
+
+        //5. Cache literally all RRs returned.
+        int RRoffset = questionLength + 11;
+
+        for (int i = 0 ; i < ansCount ; i++) {
+            //TODO: I think we do something special
+        }
+
+        for (int i = 0 ; i < nsCount ; i++) {
+            //TODO: cache and save in set to return
+        }
+
+        for (int i = 0 ; i < otherCount ; i++) {
+            //TODO: just cache
+        }
+
+        //Return is the name servers, regardless of the category they're under!
         return null;
     }
 
